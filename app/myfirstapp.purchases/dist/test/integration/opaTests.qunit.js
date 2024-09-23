@@ -1,0 +1,2 @@
+sap.ui.require(["sap/fe/test/JourneyRunner","myfirstapp/purchases/test/integration/FirstJourney","myfirstapp/purchases/test/integration/pages/PurchasesList","myfirstapp/purchases/test/integration/pages/PurchasesObjectPage"],function(e,s,r,t){"use strict";var e=new e({launchUrl:sap.ui.require.toUrl("myfirstapp/purchases")+"/index.html"});e.run({pages:{onThePurchasesList:r,onThePurchasesObjectPage:t}},s.run)});
+//# sourceMappingURL=opaTests.qunit.js.map

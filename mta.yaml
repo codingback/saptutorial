@@ -1,0 +1,260 @@
+_schema-version: '3.1'
+ID: myfirstapp
+version: 1.0.0
+description: A simple CAP project.
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - rm -rf build/dist
+        - mkdir -p build/dist
+        - rm -rf build/ui-deployer
+        - mkdir -p build/ui-deployer
+    - builder: custom
+      commands:
+        - npm install --production
+        - >-
+          bash -c "cds -v | grep 'cds-dk' || npm i --production --no-save
+          @sap/cds-dk @sap/mdk-tools"
+        - bash -c "export PATH=$PATH:$(pwd)/node_modules/.bin"
+        - cds build --production
+  after-all:
+    - builder: custom
+      commands:
+        - npm install
+modules:
+  - name: myfirstapp-myfirstapp.customers
+    type: html5
+    path: app/myfirstapp.customers
+    build-parameters:
+      builder: custom
+      commands:
+        - rm -rf dist-zip dist
+        - npm install
+        - >-
+          npx -p @ui5/cli@^3.0.0 ui5 build --dest dist
+          --include-task=generateCachebusterInfo
+        - mkdir dist-zip
+        - bash -c "cd dist && npx bestzip ../dist-zip/myfirstappcustomers.zip *"
+      _artifactName: myfirstappcustomers.zip
+      supported-platforms: []
+      build-result: dist-zip
+  - name: myfirstapp-myfirstapp.purchases
+    type: html5
+    path: app/myfirstapp.purchases
+    build-parameters:
+      builder: custom
+      commands:
+        - rm -rf dist-zip dist
+        - npm install
+        - >-
+          npx -p @ui5/cli@^3.0.0 ui5 build --dest dist
+          --include-task=generateCachebusterInfo
+        - mkdir dist-zip
+        - bash -c "cd dist && npx bestzip ../dist-zip/myfirstapppurchases.zip *"
+      _artifactName: myfirstapppurchases.zip
+      supported-platforms: []
+      build-result: dist-zip
+  - name: myfirstapp-myfirstapp.redemptions
+    type: html5
+    path: app/myfirstapp.redemptions
+    build-parameters:
+      builder: custom
+      commands:
+        - rm -rf dist-zip dist
+        - npm install
+        - >-
+          npx -p @ui5/cli@^3.0.0 ui5 build --dest dist
+          --include-task=generateCachebusterInfo
+        - mkdir dist-zip
+        - >-
+          bash -c "cd dist && npx bestzip ../dist-zip/myfirstappredemptions.zip
+          *"
+      _artifactName: myfirstappredemptions.zip
+      supported-platforms: []
+      build-result: dist-zip
+  - name: myfirstapp-db-deployer
+    type: hdb
+    path: gen/db
+    parameters:
+      buildpack: nodejs_buildpack
+    build-parameters:
+      builder: npm
+      ignore:
+        - node_modules
+        - package-lock.json
+    requires:
+      - name: myfirstapp-service-uaa
+      - name: myfirstapp-service-db
+  - name: myfirstapp-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      memory: 256MB
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    build-parameters:
+      builder: npm
+      ignore:
+        - node_modules
+        - package-lock.json
+    requires:
+      - name: myfirstapp-service-uaa
+      - name: myfirstapp-service-db
+      - name: myfirstapp-service-destination
+      - name: myfirstapp-service-metadata
+      - name: myfirstapp-service-connectivity
+      - name: myfirstapp-service-logs
+  - name: myfirstapp-aux-destinations
+    type: com.sap.application.content
+    parameters:
+      content:
+        subaccount:
+          existing_destinations_policy: update
+          destinations:
+            - Authentication: OAuth2UserTokenExchange
+              Name: myfirstapp-service-uaa
+              ServiceInstanceName: myfirstapp-uaa
+              ServiceKeyName: myfirstapp-uaa-key
+              sap.cloud.service: lcap.myfirstapp
+            - Authentication: OAuth2UserTokenExchange
+              Name: myfirstapp-app-srv
+              TokenServiceInstanceName: myfirstapp-uaa
+              TokenServiceKeyName: myfirstapp-uaa-key
+              URL: ~{srv-api/srv-url}
+              sap.cloud.service: lcap.myfirstapp
+            - Name: myfirstapp-service-html5-apps-repo-host
+              ServiceInstanceName: myfirstapp-html5-apps-repo-host
+              ServiceKeyName: myfirstapp-html5-apps-repo-host-key
+              sap.cloud.service: lcap.myfirstapp
+            - Authentication: OAuth2UserTokenExchange
+              Name: myfirstapp-myfirstappSrv
+              TokenServiceInstanceName: myfirstapp-uaa
+              TokenServiceKeyName: myfirstapp-uaa-key
+              URL: ~{srv-api/srv-url}/service/myfirstapp
+              sap.cloud.service: lcap.myfirstapp
+              sap.applicationdevelopment.actions.enabled: true
+              sap.build.usage: CAP
+              sap.processautomation.enabled: true
+              HTML5.DynamicDestination: true
+              WebIDEEnabled: true
+              MobileEnabled: true
+              AppgyverEnabled: true
+    build-parameters:
+      no-source: true
+    requires:
+      - name: myfirstapp-service-uaa
+        parameters:
+          service-key:
+            name: myfirstapp-uaa-key
+      - name: srv-api
+      - name: myfirstapp-service-html5-apps-repo-host
+        parameters:
+          service-key:
+            name: myfirstapp-html5-apps-repo-host-key
+      - name: myfirstapp-service-destination
+        parameters:
+          content-target: true
+  - name: myfirstapp-launchpad
+    type: html5
+    path: build/launchpad
+    build-parameters:
+      builder: custom
+      commands:
+        - npm install
+        - >-
+          npx -p @ui5/cli@^3.0.0 ui5 build --dest dist
+          --include-task=generateCachebusterInfo
+        - bash -c "cd dist && npx bestzip ../../../build/dist/launchpad.zip *"
+        - rm -rf dist
+      _artifactName: launchpad.zip
+      supported-platforms: []
+      build-result: ../../build/dist
+  - name: myfirstapp-aux-ui-deployer
+    type: com.sap.application.content
+    path: build/ui-deployer
+    build-parameters:
+      build-result: resources
+      requires:
+        - name: myfirstapp-myfirstapp.customers
+          artifacts:
+            - myfirstappcustomers.zip
+          target-path: resources
+        - name: myfirstapp-myfirstapp.purchases
+          artifacts:
+            - myfirstapppurchases.zip
+          target-path: resources
+        - name: myfirstapp-myfirstapp.redemptions
+          artifacts:
+            - myfirstappredemptions.zip
+          target-path: resources
+        - name: myfirstapp-launchpad
+          artifacts:
+            - launchpad.zip
+          target-path: resources
+    requires:
+      - name: myfirstapp-service-html5-apps-repo-host
+        parameters:
+          content-target: true
+resources:
+  - type: org.cloudfoundry.managed-service
+    name: myfirstapp-service-uaa
+    parameters:
+      service: xsuaa
+      service-plan: application
+      service-name: myfirstapp-uaa
+      path: xs-security.json
+      config:
+        oauth2-configuration:
+          redirect-uris:
+            - https://*.${default-domain}/login/*
+        xsappname: myfirstapp-${space}
+        role-collections: []
+  - type: org.cloudfoundry.managed-service
+    name: myfirstapp-service-db
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+      service-name: myfirstapp-db
+      config:
+        database_id: eb973dbe-ba58-45f5-ac5a-47073ee1cb78
+  - type: org.cloudfoundry.managed-service
+    name: myfirstapp-service-destination
+    parameters:
+      service: destination
+      service-plan: lite
+      service-name: myfirstapp-destination
+      config:
+        HTML5Runtime_enabled: true
+        version: 1.0.0
+  - type: org.cloudfoundry.user-provided-service
+    name: myfirstapp-service-metadata
+    parameters:
+      service: metadata
+      service-plan: standard
+      service-name: myfirstapp-metadata
+      config:
+        default-domain: ${default-domain}
+  - type: org.cloudfoundry.managed-service
+    name: myfirstapp-service-connectivity
+    parameters:
+      service: connectivity
+      service-plan: lite
+      service-name: myfirstapp-connectivity
+  - type: org.cloudfoundry.managed-service
+    name: myfirstapp-service-logs
+    parameters:
+      service: application-logs
+      service-plan: lite
+      service-name: myfirstapp-logs
+  - type: org.cloudfoundry.managed-service
+    name: myfirstapp-service-html5-apps-repo-host
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+      service-name: myfirstapp-html5-apps-repo-host
